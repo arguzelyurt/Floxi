@@ -4,11 +4,11 @@ import { streakAlive } from '../core/daily';
 import { isHardLevel } from '../core/generator';
 import { MissionState } from '../core/missions';
 import { COLORS, UI } from '../game/palette';
-import { albumEntries } from '../game/album';
+import { albumEntries, showcaseEntries } from '../game/album';
 import { starterOfferActive } from '../game/purchases';
 import { Progress } from '../game/storage';
 import { t } from '../i18n';
-import { Btn, Card, Coins, kit } from './kit';
+import { Card, Coins, kit } from './kit';
 import MissionsCard from './MissionsCard';
 import PixelArt from './PixelArt';
 
@@ -34,6 +34,7 @@ export default function HomeScreen(p: Props) {
   const album = albumEntries(progress);
   const next = album.find((a) => !a.done);
   const starter = starterOfferActive(progress, Date.now());
+  const shown = showcaseEntries(progress);
 
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content}>
@@ -48,29 +49,40 @@ export default function HomeScreen(p: Props) {
           ))}
         </View>
         <Text style={styles.logo}>Floxi</Text>
-        <Text style={styles.tag}>{t('app.tagline')}</Text>
       </View>
 
-      <View style={{ marginTop: 28 }}>
-        <Btn label={t('common.level', { n }) + (isHardLevel(n) ? t('common.hardSuffix') : '')} onPress={p.onPlay} primary />
-      </View>
+      {shown.length > 0 && (
+        <Pressable onPress={p.onAlbum} style={styles.showcase}>
+          {shown.map((e) => (
+            <View key={e.pic.key} style={styles.showItem}>
+              <PixelArt pic={e.pic} size={72} />
+            </View>
+          ))}
+        </Pressable>
+      )}
+
+      <Pressable onPress={p.onPlay} style={({ pressed }) => [styles.play, pressed && { opacity: 0.85 }]}>
+        <Text style={styles.playIcon}>▶</Text>
+        <Text style={styles.playText}>
+          {t('common.level', { n })}
+          {isHardLevel(n) ? t('common.hardSuffix') : ''}
+        </Text>
+      </Pressable>
 
       <View style={styles.cards}>
         <Card style={dailyDone ? { ...styles.half, opacity: 0.7 } : styles.half} onPress={p.onDaily}>
           <Text style={kit.cardTitle}>{t('home.dailyTitle')} {dailyDone ? '✓' : ''}</Text>
-          <Text style={kit.cardSub}>{t('home.dailySub')}</Text>
-          <Text style={styles.streak}>{streak === 1 ? t('home.streakDay1') : t('home.streakDays', { n: streak })}</Text>
+          <Text style={styles.streak}>🔥 {streak}</Text>
         </Card>
         <Card style={styles.half} onPress={p.onAlbum}>
+          <Text style={kit.cardTitle} numberOfLines={1}>
+            {t('tab.album')}
+          </Text>
           <View style={styles.albumRow}>
-            <PixelArt pic={(next ?? album[album.length - 1]).pic} size={44} silhouette={!!next} />
-            <View style={{ flex: 1, marginLeft: 10 }}>
-              <Text style={kit.cardTitle}>{t('tab.album')}</Text>
-              <Text style={kit.cardSub}>
-                {album.filter((a) => a.done).length}/{album.length}
-                {next ? t('home.albumNext', { n: next.level }) : ''}
-              </Text>
-            </View>
+            <PixelArt pic={(next ?? album[album.length - 1]).pic} size={30} silhouette={!!next} />
+            <Text style={styles.count}>
+              {album.filter((a) => a.done).length}/{album.length}
+            </Text>
           </View>
         </Card>
       </View>
@@ -82,19 +94,13 @@ export default function HomeScreen(p: Props) {
       {starter && (
         <Card style={styles.offer} onPress={p.onShop}>
           <Text style={kit.cardTitle}>{t('home.starterTitle')}</Text>
-          <Text style={kit.cardSub}>{t('home.starterSub')}</Text>
         </Card>
       )}
       {progress.level > 30 && progress.piggy >= 300 && (
         <Card style={{ marginTop: 12 }} onPress={p.onShop}>
           <Text style={kit.cardTitle}>{t('home.piggyTitle', { n: progress.piggy })}</Text>
-          <Text style={kit.cardSub}>{t('home.piggySub')}</Text>
         </Card>
       )}
-
-      <Pressable onPress={p.onShop} style={{ alignSelf: 'center' }}>
-        <Text style={styles.promise}>{t('common.fairAds')}</Text>
-      </Pressable>
     </ScrollView>
   );
 }
@@ -102,15 +108,42 @@ export default function HomeScreen(p: Props) {
 const styles = StyleSheet.create({
   content: { paddingHorizontal: 24, paddingBottom: 24 },
   top: { flexDirection: 'row', justifyContent: 'flex-end', paddingTop: 8 },
-  logoWrap: { alignItems: 'center', marginTop: 20 },
+  logoWrap: { alignItems: 'center', marginTop: 28 },
   drops: { flexDirection: 'row', gap: 8, marginBottom: 12 },
   drop: { width: 18, height: 18, borderRadius: 9 },
   logo: { color: UI.text, fontSize: 56, fontWeight: '900', letterSpacing: 1 },
-  tag: { color: UI.dim, fontSize: 16, marginTop: 4 },
-  cards: { flexDirection: 'row', gap: 12, marginTop: 14 },
-  half: { flex: 1, minHeight: 88 },
-  albumRow: { flexDirection: 'row', alignItems: 'center' },
-  streak: { color: UI.gold, fontSize: 13, fontWeight: '700', marginTop: 8 },
+  showcase: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 12,
+    marginTop: 20,
+  },
+  showItem: {
+    width: 92,
+    height: 92,
+    borderRadius: 18,
+    backgroundColor: UI.panel,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderBottomWidth: 4,
+    borderBottomColor: UI.gold,
+  },
+  play: {
+    marginTop: 28,
+    backgroundColor: UI.accent,
+    borderRadius: 24,
+    paddingVertical: 22,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  playIcon: { color: UI.bg, fontSize: 26, fontWeight: '900' },
+  playText: { color: UI.bg, fontSize: 28, fontWeight: '900' },
+  count: { color: UI.text, fontSize: 20, fontWeight: '900' },
+  cards: { flexDirection: 'row', gap: 12, marginTop: 16 },
+  half: { flex: 1, minHeight: 84, justifyContent: 'center' },
+  albumRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
+  streak: { color: UI.gold, fontSize: 20, fontWeight: '900', marginTop: 6 },
   offer: { marginTop: 12, borderWidth: 2, borderColor: UI.gold },
-  promise: { color: UI.dim, fontSize: 12, textAlign: 'center', marginTop: 20 },
 });

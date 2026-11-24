@@ -36,7 +36,6 @@ export default function DailyScreen({ progress, todayKey, onPlay, onShop }: Prop
       <ScrollView contentContainerStyle={styles.content}>
         <Card style={styles.hero}>
           <Text style={styles.big}>{done ? t('daily.doneTitle') : t('daily.readyTitle')}</Text>
-          <Text style={kit.cardSub}>{t('daily.desc')}</Text>
           {done && (
             <Text style={styles.stars}>
               {'★'.repeat(todayStars)}
@@ -74,11 +73,6 @@ export default function DailyScreen({ progress, todayKey, onPlay, onShop }: Prop
             })}
           </View>
         </Card>
-
-        <Text style={kit.section}>{t('daily.how')}</Text>
-        <Card>
-          <Text style={kit.cardSub}>{t('daily.rules', { n: ECONOMY.daily })}</Text>
-        </Card>
       </ScrollView>
     </View>
   );
@@ -87,16 +81,16 @@ export default function DailyScreen({ progress, todayKey, onPlay, onShop }: Prop
 const styles = StyleSheet.create({
   content: { paddingHorizontal: 24, paddingBottom: 24 },
   hero: { marginTop: 8, gap: 4 },
-  big: { color: UI.text, fontSize: 20, fontWeight: '800' },
+  big: { color: UI.text, fontSize: 24, fontWeight: '900' },
   stars: { color: UI.gold, fontSize: 30, letterSpacing: 3, marginTop: 6 },
   streakRow: { flexDirection: 'row', alignItems: 'center' },
-  streakNum: { color: UI.gold, fontSize: 26, fontWeight: '900' },
+  streakNum: { color: UI.gold, fontSize: 32, fontWeight: '900' },
   week: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 14 },
   dayCol: { alignItems: 'center', gap: 4 },
   dayDot: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: UI.bg2,
     alignItems: 'center',
     justifyContent: 'center',
@@ -104,5 +98,5 @@ const styles = StyleSheet.create({
   dayDone: { backgroundColor: UI.gold },
   dayToday: { borderWidth: 2, borderColor: UI.accent },
   dayMark: { color: UI.dim, fontWeight: '900' },
-  dayName: { color: UI.dim, fontSize: 11, fontWeight: '700' },
+  dayName: { color: UI.dim, fontSize: 13, fontWeight: '700' },
 });

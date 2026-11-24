@@ -127,6 +127,16 @@ test('elle çizilmiş resimler geçerli ve çözülebilir', () => {
   }
 });
 
+test('tüm koleksiyon resim seviyeleri ve 100-400 arası örnekler çözülebilir', () => {
+  const ns = [...PICTURES.map((_, i) => 5 + 10 * i), 120, 200, 301, 400];
+  for (const n of ns) {
+    const lvl = levelFor(n);
+    const r = solve(lvl, initialState(lvl), 40000);
+    assert.ok(r.moves, `${lvl.id} çözülemedi`);
+    assert.equal(play(lvl, r.moves!).status, 'won', lvl.id);
+  }
+});
+
 test('ilk 60 seviye + günlük: çözücü çözer, çözüm gerçekten kazandırır', () => {
   const levels = [...Array.from({ length: 60 }, (_, i) => levelFor(i + 1)), dailyLevel('2026-11-22')];
   for (const lvl of levels) {

@@ -63,9 +63,6 @@ export default function MarketScreen({ wallet, onBuy, onEquip, onOpenShop }: Pro
             onEquip={() => onEquip(item.id)}
           />
         ))}
-        <Text style={styles.note}>
-          {t('market.note')}
-        </Text>
       </ScrollView>
     </View>
   );
@@ -149,14 +146,14 @@ const styles = StyleSheet.create({
   coinText: { color: UI.gold, fontWeight: '800', fontSize: 15 },
   coinPlus: { color: UI.accent, fontWeight: '900', fontSize: 16 },
   tabs: { flexDirection: 'row', gap: 6, paddingHorizontal: 24, marginTop: 4 },
-  tab: { flex: 1, paddingVertical: 9, borderRadius: 12, backgroundColor: UI.bg2, alignItems: 'center' },
+  tab: { flex: 1, paddingVertical: 11, borderRadius: 12, backgroundColor: UI.bg2, alignItems: 'center' },
   tabOn: { backgroundColor: UI.accent },
-  tabText: { color: UI.text, fontWeight: '700', fontSize: 13 },
+  tabText: { color: UI.text, fontWeight: '800', fontSize: 15 },
   list: { paddingHorizontal: 24, paddingVertical: 16, gap: 10 },
   inventory: { flexDirection: 'row', backgroundColor: UI.panel, borderRadius: 16, padding: 12, marginBottom: 4 },
   invItem: { flex: 1, alignItems: 'center' },
-  invCount: { color: UI.gold, fontSize: 20, fontWeight: '900' },
-  invName: { color: UI.dim, fontSize: 12 },
+  invCount: { color: UI.gold, fontSize: 24, fontWeight: '900' },
+  invName: { color: UI.dim, fontSize: 14, fontWeight: '700' },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -169,15 +166,14 @@ const styles = StyleSheet.create({
   },
   rowOn: { borderColor: UI.accent },
   preview: { width: 76, height: 56, alignItems: 'center', justifyContent: 'center' },
-  name: { color: UI.text, fontSize: 16, fontWeight: '800' },
-  desc: { color: UI.dim, fontSize: 12, marginTop: 2 },
-  btn: { backgroundColor: UI.gold, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, minWidth: 78, alignItems: 'center' },
+  name: { color: UI.text, fontSize: 18, fontWeight: '800' },
+  desc: { color: UI.dim, fontSize: 14, marginTop: 2 },
+  btn: { backgroundColor: UI.gold, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, minWidth: 84, alignItems: 'center' },
   btnOff: { backgroundColor: UI.bg },
   btnGhost: { backgroundColor: UI.panelHi },
-  btnText: { color: UI.bg, fontWeight: '800' },
+  btnText: { color: UI.bg, fontWeight: '900', fontSize: 16 },
   using: { color: UI.accent, fontWeight: '800', minWidth: 78, textAlign: 'center' },
   miniRail: { width: 70, height: 50, borderRadius: 12, borderWidth: 2, padding: 7 },
   miniBoard: { flex: 1, borderRadius: 4, flexDirection: 'row', flexWrap: 'wrap', gap: 3, padding: 4 },
   boosterIcon: { fontSize: 28, color: UI.text },
-  note: { color: UI.dim, fontSize: 12, textAlign: 'center', marginTop: 8 },
 });

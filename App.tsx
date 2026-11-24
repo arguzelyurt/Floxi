@@ -50,6 +50,7 @@ import GameScreen, { MonetizationApi, WinResult } from './src/ui/GameScreen';
 import ShopSheet from './src/ui/ShopSheet';
 import HomeScreen from './src/ui/HomeScreen';
 import AlbumScreen from './src/ui/AlbumScreen';
+import { toggleShowcase } from './src/game/album';
 import MarketScreen from './src/ui/MarketScreen';
 import DailyScreen from './src/ui/DailyScreen';
 import SettingsScreen from './src/ui/SettingsScreen';
@@ -387,7 +388,13 @@ export default function App() {
                       onOpenShop={() => money.openShop()}
                     />
                   )}
-                  {tab === 'album' && <AlbumScreen progress={progress} onShop={() => money.openShop()} />}
+                  {tab === 'album' && (
+                    <AlbumScreen
+                      progress={progress}
+                      onShop={() => money.openShop()}
+                      onToggleShowcase={(key) => update((p) => toggleShowcase(p, key))}
+                    />
+                  )}
                   {tab === 'settings' && (
                     <SettingsScreen
                       progress={progress}

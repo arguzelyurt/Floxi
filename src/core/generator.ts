@@ -8,8 +8,9 @@
 // büyüklüğüyle ayarlanır. Zor seviyelerde rıhtımda bir yer eksik.
 
 import { PICTURES, Picture } from './pictures';
-import { Cell, EMPTY, Flox, Level, Lock, reveal, runLoop } from './rules';
+import { applyMove, Cell, EMPTY, Flox, initialState, Level, legalMoves, Lock, reveal, runLoop } from './rules';
 import { hashSeed, mulberry32, pick, randInt, Rng, shuffle } from './rng';
+import { solve } from './solver';
 
 export const PALETTE_SIZE = 8; // rastgele resimlerde kullanılan renk sayısı üst sınırı
 
@@ -26,30 +27,42 @@ export interface Difficulty {
   hiddenFrac: number;
   /** Kilitli şerit sayısı */
   lockedLanes: number;
+  /** Şerit sıraları karıştırılır (çözücü doğrular): oyuncunun rıhtımı planlaması gerekir */
+  shuffle: boolean;
+  /** Hedef zorluk: rastgele oynayan bir botun kazanma oranı (0-1). Düşük = zor */
+  target: number;
+}
+
+/** Seviyeye göre hedef bot kazanma oranı: 4-6 kolay-orta, sonra kademeli zorlaşır */
+export function targetWinRate(n: number, hard: boolean, picture: boolean): number {
+  const t = n <= 3 ? 1 : n <= 5 ? 0.75 : n <= 10 ? 0.6 : n <= 20 ? 0.5 : n <= 40 ? 0.42 : 0.38;
+  return Math.max(0.15, t - (hard ? 0.2 : 0) + (picture ? 0.15 : 0));
 }
 
 export const isHardLevel = (n: number): boolean => n >= 10 && n % 10 === 0;
 
 export function difficultyFor(n: number): Difficulty {
+  // 1-3 öğretici; 4'ten itibaren şeritler karışık, 8'den sonra 5 renk ve küçük rıhtım, 15'ten sonra 6 renk
   const hard = isHardLevel(n);
-  const size = n <= 4 ? 8 : n <= 15 ? 10 : n <= 40 ? 12 : 13;
-  const colors = Math.min(6, 2 + Math.floor((n + 1) / 6));
-  const lanes = n <= 2 ? 2 : n <= 12 ? 3 : n <= 35 ? 4 : 5;
-  const charges =
-    size <= 8 ? [4, 6, 8] : size <= 10 ? [4, 6, 8] : size <= 12 ? [4, 6, 8] : [5, 8, 10];
-  const baseDock = n <= 20 ? 5 : 4;
-  const hiddenFrac = n < 16 ? 0 : Math.min(0.6, 0.25 + (n - 16) * 0.008);
-  const lockedLanes = n >= 26 && lanes >= 4 ? (n >= 46 ? 2 : 1) : 0;
+  const size = n <= 3 ? 8 : n <= 6 ? 10 : n <= 40 ? 12 : 13;
+  const colors = n <= 3 ? 3 : n <= 7 ? 4 : n <= 14 ? 5 : 6;
+  const lanes = n <= 2 ? 2 : n <= 6 ? 3 : n <= 35 ? 4 : 5;
+  const charges = size <= 12 ? [4, 6, 8] : [5, 8, 10];
+  const baseDock = n <= 3 ? 5 : n <= 5 ? 4 : 3;
+  const hiddenFrac = n < 12 ? 0 : Math.min(0.6, 0.3 + (n - 12) * 0.01);
+  const lockedLanes = n >= 18 && lanes >= 4 ? (n >= 36 ? 2 : 1) : 0;
   return {
     size,
     colors,
     lanes,
-    dockSize: hard ? baseDock - 1 : baseDock,
+    dockSize: hard && n >= 20 ? Math.max(2, baseDock - 1) : baseDock,
     charges,
-    layered: n > 6,
+    layered: n > 3,
     hard,
     hiddenFrac,
     lockedLanes,
+    shuffle: n >= 4,
+    target: targetWinRate(n, hard, false),
   };
 }
 
@@ -259,7 +272,41 @@ export function buildLevel(id: string, seed: number, d: Difficulty, pic?: Pictur
   };
   if (hidden.length) level.hidden = hidden;
   if (locks.length) level.locks = locks;
-  return level;
+  return d.shuffle ? shuffleLanes(level, rng, d.target) : level;
+}
+
+/** Rastgele oynayan botun kazanma oranı (tohumlu, her cihazda aynı) */
+export function botWinRate(level: Level, plays = 24): number {
+  const rng = mulberry32(hashSeed(level.id));
+  let wins = 0;
+  for (let t = 0; t < plays; t++) {
+    let st = initialState(level);
+    while (st.status === 'playing') {
+      const ms = legalMoves(level, st);
+      st = applyMove(level, st, ms[Math.floor(rng() * ms.length)]).state;
+    }
+    if (st.status === 'won') wins++;
+  }
+  return wins / plays;
+}
+
+/**
+ * Şeritleri birkaç kez karıştırır, çözücünün çözebildiği dizilimler arasından
+ * bot kazanma oranı hedefe en yakın olanı seçer. Böylece zorluk seviyeden seviyeye dalgalanmaz.
+ */
+function shuffleLanes(level: Level, rng: Rng, target: number): Level {
+  let best = level;
+  let bestGap = Math.abs(botWinRate(level) - target);
+  for (let attempt = 0; attempt < 10 && bestGap > 0.06; attempt++) {
+    const cand: Level = { ...level, lanes: level.lanes.map((l) => shuffle(l, rng)) };
+    if (!solve(cand, initialState(cand), 12000).moves) continue;
+    const gap = Math.abs(botWinRate(cand) - target);
+    if (gap < bestGap) {
+      best = cand;
+      bestGap = gap;
+    }
+  }
+  return best;
 }
 
 /** n. seviye (1'den başlar). 5, 15, 25… elle çizilmiş resim (dinlenme seviyeleri). */
@@ -267,13 +314,27 @@ export function levelFor(n: number): Level {
   const d = difficultyFor(n);
   const pic = n % 10 === 5 ? PICTURES[((n - 5) / 10) % PICTURES.length] : undefined;
   const charges = pic ? difficultyFor(Math.min(n, 15)).charges : d.charges;
-  return buildLevel(`L${n}`, hashSeed(`floxi-level-${n}`), { ...d, charges }, pic);
+  const target = targetWinRate(n, d.hard, !!pic);
+  const dd = { ...d, charges, target };
+  const seed = hashSeed(`floxi-level-${n}`);
+  // Birkaç tohum dene, hedef zorluğa en yakın olanı al (her cihazda aynı sonuç)
+  let best = buildLevel(`L${n}`, seed, dd, pic);
+  let gap = Math.abs(botWinRate(best) - target);
+  for (let k = 1; k < 6 && gap > 0.08; k++) {
+    const cand = buildLevel(`L${n}`, seed + k * 7919, dd, pic);
+    const g = Math.abs(botWinRate(cand) - target);
+    if (g < gap) {
+      best = cand;
+      gap = g;
+    }
+  }
+  return best;
 }
 
 /** Günlük Mozaik: herkese aynı, tarih (UTC, YYYY-MM-DD) tohumlu. */
 export const dailyKey = (date: Date): string => date.toISOString().slice(0, 10);
 
 export function dailyLevel(key: string): Level {
-  const d: Difficulty = { ...difficultyFor(30), dockSize: 3, hard: true };
+  const d: Difficulty = { ...difficultyFor(30), dockSize: 3, hard: true, shuffle: true, target: 0.35 };
   return buildLevel(`D${key}`, hashSeed(`floxi-daily-${key}`), d);
 }

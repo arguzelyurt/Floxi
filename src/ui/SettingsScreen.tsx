@@ -24,7 +24,6 @@ export default function SettingsScreen({ progress, update, onShop, onRestore, pr
         <Card style={{ gap: 16 }}>
           <View>
             <Text style={kit.cardTitle}>{t('settings.speed')}</Text>
-            <Text style={kit.cardSub}>{t('settings.speedSub')}</Text>
             <View style={styles.segment}>
               {SPEEDS.map((sp) => (
                 <Pressable
@@ -39,7 +38,6 @@ export default function SettingsScreen({ progress, update, onShop, onRestore, pr
           </View>
           <Row
             label={t('settings.colorBlind')}
-            sub={t('settings.colorBlindSub')}
             value={progress.colorBlind}
             onChange={(v) => update((p) => ({ ...p, colorBlind: v }))}
           />
@@ -63,16 +61,13 @@ export default function SettingsScreen({ progress, update, onShop, onRestore, pr
 
         <Text style={kit.section}>{t('settings.purchases')}</Text>
         <Card>
-          <Text style={kit.cardSub}>
-            {progress.ads.removeAds ? t('settings.noAdsOn') : t('settings.noAdsOff')}
-          </Text>
+          {progress.ads.removeAds && <Text style={kit.cardTitle}>{t('settings.noAdsOn')}</Text>}
           <Btn label={t('settings.shop')} onPress={onShop} primary />
           <Btn label={t('settings.restore')} onPress={onRestore} />
         </Card>
 
         <Text style={kit.section}>{t('settings.privacy')}</Text>
         <Card>
-          <Text style={kit.cardSub}>{t('settings.privacyText')}</Text>
           {privacyOptions && <Btn label={t('settings.adPrefs')} onPress={privacyOptions} />}
           {!!PRIVACY_URL && <Btn label={t('settings.policy')} onPress={() => Linking.openURL(PRIVACY_URL).catch(() => {})} />}
           {!!SUPPORT_EMAIL && <Text style={[kit.cardSub, { marginTop: 10 }]}>{t('settings.support', { email: SUPPORT_EMAIL })}</Text>}
@@ -125,9 +120,9 @@ function Row(props: { label: string; sub?: string; value: boolean; onChange(v: b
 const styles = StyleSheet.create({
   content: { paddingHorizontal: 24, paddingBottom: 24 },
   segment: { flexDirection: 'row', gap: 6, marginTop: 10 },
-  segBtn: { flex: 1, paddingVertical: 9, borderRadius: 10, backgroundColor: UI.bg2, alignItems: 'center' },
+  segBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: UI.bg2, alignItems: 'center' },
   segOn: { backgroundColor: UI.accent },
-  segText: { color: UI.text, fontWeight: '700', fontSize: 13 },
+  segText: { color: UI.text, fontWeight: '800', fontSize: 16 },
   row: { flexDirection: 'row', alignItems: 'center' },
   dev: {
     marginTop: 20,
@@ -141,5 +136,5 @@ const styles = StyleSheet.create({
   devRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   devBtn: { backgroundColor: UI.bg2, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
   devBtnText: { color: UI.text, fontSize: 13, fontWeight: '600' },
-  version: { color: UI.dim, fontSize: 11, textAlign: 'center', marginTop: 20 },
+  version: { color: UI.dim, fontSize: 13, textAlign: 'center', marginTop: 20 },
 });

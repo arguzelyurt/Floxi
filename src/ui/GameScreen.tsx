@@ -853,7 +853,7 @@ const styles = StyleSheet.create({
   },
   coinText: { color: UI.gold, fontWeight: '700', fontSize: 16 },
   coinPlus: { color: UI.accent, fontWeight: '900', fontSize: 16 },
-  info: { color: UI.dim, textAlign: 'center', marginVertical: 12, minHeight: 18, fontSize: 13 },
+  info: { color: UI.dim, textAlign: 'center', marginVertical: 12, minHeight: 20, fontSize: 15, fontWeight: '700' },
   dock: {
     flexDirection: 'row',
     justifyContent: 'center',
