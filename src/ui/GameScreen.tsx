@@ -22,7 +22,11 @@ import {
 import { hint } from '../core/solver';
 import { Booster, boosterName, ECONOMY } from '../core/monetization';
 import { t } from '../i18n';
-import { pictureName } from '../core/pictures';
+import { Picture, pictureName } from '../core/pictures';
+import { MapDef } from '../core/maps';
+import PixelArt from './PixelArt';
+import RewardLine from './RewardLine';
+import { mapName } from './MapsScreen';
 import { COLORS, SYMBOLS, UI } from '../game/palette';
 import { Progress, SPEED_MS, todayUTC } from '../game/storage';
 import { Btn, TextLink } from './kit';
@@ -66,6 +70,10 @@ interface Props {
   onExit(): void;
   /** Kazanma kartında ek düğme (ör. Günlük Mozaik paylaş) */
   extraWinAction?: { label: string; onPress(r: WinResult): void };
+  /** Bu seviye koleksiyona resim katıyorsa: kazanınca gösterilir */
+  winPicture?: Picture;
+  /** Bu seviye bir haritayı bitiriyorsa: kazanınca harita ödülü gösterilir */
+  winMap?: MapDef;
 }
 
 interface Anim {
@@ -603,6 +611,23 @@ export default function GameScreen(props: Props) {
             {t('game.summary', { n: s.launches, park: s.parked === 0 ? t('game.noPark') : t('game.park', { n: s.parked }) })}
           </Text>
           {earned > 0 && <Text style={styles.reward}>{t('game.reward', { n: doubled ? earned * 2 : earned })}</Text>}
+          {props.winPicture && (
+            <View style={styles.unlock}>
+              <PixelArt pic={props.winPicture} size={84} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.unlockSub}>{t('game.addedToAlbum')}</Text>
+                <Text style={styles.unlockTitle}>{pictureName(props.winPicture.key)}</Text>
+              </View>
+            </View>
+          )}
+          {props.winMap && (
+            <View style={styles.mapDone}>
+              <Text style={styles.unlockTitle}>
+                {props.winMap.icon} {t('maps.done', { name: mapName(props.winMap.key) })}
+              </Text>
+              <RewardLine reward={props.winMap.reward} />
+            </View>
+          )}
           <Btn label={props.nextLabel} primary disabled={adBusy} onPress={onNext} />
           {props.extraWinAction && (
             <Btn
@@ -925,6 +950,28 @@ const styles = StyleSheet.create({
   overTitle: { color: UI.text, fontSize: 28, fontWeight: '900', textAlign: 'center' },
   overSub: { color: UI.dim, textAlign: 'center' },
   reward: { color: UI.gold, fontSize: 18, fontWeight: '700', marginVertical: 8 },
+  unlock: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    alignSelf: 'stretch',
+    backgroundColor: UI.bg2,
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 6,
+  },
+  unlockSub: { color: UI.dim, fontSize: 14, fontWeight: '700' },
+  unlockTitle: { color: UI.text, fontSize: 20, fontWeight: '900', textAlign: 'center' },
+  mapDone: {
+    alignSelf: 'stretch',
+    backgroundColor: UI.bg2,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: UI.gold,
+    padding: 12,
+    gap: 10,
+    marginBottom: 6,
+  },
   link: { color: UI.dim, fontSize: 13, textDecorationLine: 'underline', marginTop: 4 },
   stars: { color: UI.gold, fontSize: 40, letterSpacing: 4 },
 });

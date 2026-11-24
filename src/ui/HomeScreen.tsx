@@ -8,6 +8,8 @@ import { albumEntries, showcaseEntries } from '../game/album';
 import { starterOfferActive } from '../game/purchases';
 import { Progress } from '../game/storage';
 import { t } from '../i18n';
+import { mapForLevel, mapProgress } from '../core/maps';
+import { mapName } from './MapsScreen';
 import { Card, Coins, kit } from './kit';
 import MissionsCard from './MissionsCard';
 import PixelArt from './PixelArt';
@@ -18,6 +20,7 @@ interface Props {
   onPlay(): void;
   onDaily(): void;
   onAlbum(): void;
+  onMaps(): void;
   onShop(): void;
   missions: MissionState;
   onClaimMission(i: number): void;
@@ -35,6 +38,8 @@ export default function HomeScreen(p: Props) {
   const next = album.find((a) => !a.done);
   const starter = starterOfferActive(progress, Date.now());
   const shown = showcaseEntries(progress);
+  const map = mapForLevel(n);
+  const mp = mapProgress(map, n);
 
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content}>
@@ -68,6 +73,23 @@ export default function HomeScreen(p: Props) {
           {isHardLevel(n) ? t('common.hardSuffix') : ''}
         </Text>
       </Pressable>
+
+      <Card style={styles.map} onPress={p.onMaps}>
+        <Text style={styles.mapIcon}>{map.icon}</Text>
+        <View style={{ flex: 1, gap: 8 }}>
+          <View style={styles.mapHead}>
+            <Text style={kit.cardTitle} numberOfLines={1}>
+              {mapName(map.key)}
+            </Text>
+            <Text style={styles.mapCount}>
+              {mp.done}/{mp.total}
+            </Text>
+          </View>
+          <View style={styles.mapBar}>
+            <View style={[styles.mapFill, { width: `${(mp.done / mp.total) * 100}%` }]} />
+          </View>
+        </View>
+      </Card>
 
       <View style={styles.cards}>
         <Card style={dailyDone ? { ...styles.half, opacity: 0.7 } : styles.half} onPress={p.onDaily}>
@@ -141,7 +163,13 @@ const styles = StyleSheet.create({
   playIcon: { color: UI.bg, fontSize: 26, fontWeight: '900' },
   playText: { color: UI.bg, fontSize: 28, fontWeight: '900' },
   count: { color: UI.text, fontSize: 20, fontWeight: '900' },
-  cards: { flexDirection: 'row', gap: 12, marginTop: 16 },
+  map: { flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 16 },
+  mapIcon: { fontSize: 34 },
+  mapHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  mapCount: { color: UI.gold, fontSize: 18, fontWeight: '900' },
+  mapBar: { height: 10, borderRadius: 5, backgroundColor: UI.bg, overflow: 'hidden' },
+  mapFill: { height: 10, borderRadius: 5, backgroundColor: UI.accent },
+  cards: { flexDirection: 'row', gap: 12, marginTop: 12 },
   half: { flex: 1, minHeight: 84, justifyContent: 'center' },
   albumRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
   streak: { color: UI.gold, fontSize: 20, fontWeight: '900', marginTop: 6 },

@@ -50,6 +50,8 @@ export interface Progress {
   notifAsked: boolean;
   /** Vitrin: ana sayfada sergilenen koleksiyon resimleri (resim anahtarları, en çok 3) */
   showcase: string[];
+  /** Ödülü alınmış haritalar (indeks) */
+  mapsClaimed: number[];
   /** Saat geri alma hilesine karşı: en son görülen zaman */
   lastSeenAt: number;
 }
@@ -81,6 +83,7 @@ export const defaultProgress = (): Progress => ({
   missions: null,
   notifAsked: false,
   showcase: [],
+  mapsClaimed: [],
   lastSeenAt: Date.now(),
 });
 
@@ -132,6 +135,7 @@ export async function loadProgress(): Promise<Progress> {
     p.boosters = { ...d.boosters, ...saved.boosters };
     p.daily = { ...d.daily, ...saved.daily };
     p.cosmetics = { ...d.cosmetics, ...saved.cosmetics };
+    if (!Array.isArray(p.mapsClaimed)) p.mapsClaimed = [];
     if (!Array.isArray(p.showcase)) p.showcase = [];
     p.showcase = p.showcase.filter((k) => typeof k === 'string').slice(-3);
     if (!(p.speed in SPEED_MS)) p.speed = 'normal';

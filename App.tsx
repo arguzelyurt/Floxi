@@ -51,13 +51,17 @@ import ShopSheet from './src/ui/ShopSheet';
 import HomeScreen from './src/ui/HomeScreen';
 import AlbumScreen from './src/ui/AlbumScreen';
 import { toggleShowcase } from './src/game/album';
+import { grantMapReward } from './src/game/mapRewards';
+import { mapEndingAt } from './src/core/maps';
+import { PICTURES } from './src/core/pictures';
+import MapsScreen from './src/ui/MapsScreen';
 import MarketScreen from './src/ui/MarketScreen';
 import DailyScreen from './src/ui/DailyScreen';
 import SettingsScreen from './src/ui/SettingsScreen';
 import TabBar, { Tab } from './src/ui/TabBar';
 import { buyItem, equipItem, Wallet } from './src/core/market';
 
-type Screen = { kind: 'tabs' } | { kind: 'level' } | { kind: 'daily'; key: string };
+type Screen = { kind: 'tabs' } | { kind: 'level' } | { kind: 'daily'; key: string } | { kind: 'maps' };
 
 export default function App() {
   const [progress, setProgress] = useState<Progress | null>(null);
@@ -153,9 +157,16 @@ export default function App() {
   const dailyKeyOpen = screen.kind === 'daily' ? screen.key : null;
   const daily = useMemo(() => (dailyKeyOpen ? dailyLevel(dailyKeyOpen) : null), [dailyKeyOpen]);
 
+  const winMap = useMemo(() => mapEndingAt(n), [n]);
+  const winPicture = useMemo(() => PICTURES.find((pic) => pic.key && pic.key === level.title), [level]);
+
   const onLevelWin = useCallback(
     (r: WinResult) =>
-      update((p) => ({
+      update((before) => {
+        // Haritanın son seviyesi: ödül kazanınca hemen verilir (bir kez)
+        const ending = mapEndingAt(before.level);
+        const p = ending ? grantMapReward(before, ending.index, before.level + 1) : before;
+        return {
         ...p,
         coins: p.coins + coinsForLevel(r.stars, !!level.hard),
         piggy: piggyAfterLevel(p.piggy, p.level),
@@ -168,7 +179,8 @@ export default function App() {
           isDaily: false,
           hard: !!level.hard,
         }),
-      })),
+        };
+      }),
     [update, level],
   );
 
@@ -366,6 +378,7 @@ export default function App() {
                       onPlay={() => setScreen({ kind: 'level' })}
                       onDaily={() => setTab('daily')}
                       onAlbum={() => setTab('album')}
+                      onMaps={() => setScreen({ kind: 'maps' })}
                       onShop={() => money.openShop()}
                       missions={ensureMissions(progress.missions, todayUTC())}
                       onClaimMission={claim}
@@ -415,6 +428,14 @@ export default function App() {
                 />
               </View>
             )}
+            {screen.kind === 'maps' && (
+              <MapsScreen
+                progress={progress}
+                onBack={() => setScreen({ kind: 'tabs' })}
+                onShop={() => money.openShop()}
+                onClaim={(i) => update((p) => grantMapReward(p, i))}
+              />
+            )}
             {screen.kind === 'level' && (
               <GameScreen
                 key={level.id}
@@ -426,6 +447,8 @@ export default function App() {
                 money={money}
                 coinsFor={(stars) => coinsForLevel(stars, !!level.hard)}
                 onWin={onLevelWin}
+                winPicture={winPicture}
+                winMap={winMap}
                 nextLabel={t('game.next')}
                 onNext={onNext}
                 onExit={() => setScreen({ kind: 'tabs' })}
