@@ -11,7 +11,8 @@ export type AnalyticsEvent =
   | { name: 'booster_used'; kind: Booster; source: 'inventory' | 'coins' | 'ad' }
   | { name: 'ad_shown'; type: 'interstitial' | 'rewarded'; placement: string }
   | { name: 'iap_offer_shown'; product: string; placement: string }
-  | { name: 'iap_purchase'; product: string };
+  | { name: 'iap_purchase'; product: string }
+  | { name: 'market_buy'; item: string };
 
 type Sink = (name: string, params: Record<string, string | number>) => void;
 

@@ -4,7 +4,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AdState, Booster, initialAdState } from '../core/monetization';
 import type { MissionState } from '../core/missions';
-import { DEFAULT_COSMETICS } from '../core/market';
+import { Cosmetics, DEFAULT_COSMETICS } from '../core/market';
 import type { State } from '../core/rules';
 import { LangSetting, t } from '../i18n';
 import { hasNativeModule } from '../services/native';
@@ -30,7 +30,7 @@ export interface Progress {
   lang: LangSetting;
   /** Marketten alınan kozmetikler ve kullanılanlar */
   owned: string[];
-  cosmetics: { theme: string; flox: string; cells: string };
+  cosmetics: Cosmetics;
   /** Günlük Mozaik: son bitirilen gün, seri, gün → yıldız */
   daily: { lastDoneKey: string | null; streak: number; stars: Record<string, number> };
   ads: AdState;

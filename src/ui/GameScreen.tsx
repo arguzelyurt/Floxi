@@ -41,7 +41,18 @@ import { mapName } from './MapsScreen';
 import { COLORS, SYMBOLS, UI } from '../game/palette';
 import { Progress, SPEED_MS, todayUTC } from '../game/storage';
 import { Btn, TextLink } from './kit';
-import { CellStyle, cellStyleFor, FloxStyle, floxStyleFor, Theme, themeFor } from '../game/skins';
+import {
+  CellStyle,
+  cellStyleFor,
+  FloxStyle,
+  floxStyleFor,
+  PopStyle,
+  popStyleFor,
+  Theme,
+  themeFor,
+  TrailStyle,
+  trailStyleFor,
+} from '../game/skins';
 import { track } from '../services/analytics';
 
 const RAIL = 26;
@@ -386,8 +397,13 @@ export default function GameScreen(props: Props) {
   const now = Date.now();
   const tokenSize = RAIL - 2;
   const tokens = rail.riders.map((rd) => ({ rd, ...stopPos(path[Math.min(rd.pos, path.length - 1)]) }));
+  const trailStyle = trailStyleFor(progress.cosmetics.trail);
+  const popStyle = popStyleFor(progress.cosmetics.pop);
+  const trailLen = TRAIL_LEN[trailStyle];
   const trails = rail.riders.flatMap((rd) =>
-    [1, 2, 3].filter((k) => rd.pos - k >= 0).map((k) => ({ id: rd.id, k, color: rd.flox.color, ...stopPos(path[rd.pos - k]) })),
+    Array.from({ length: trailLen }, (_, i) => i + 1)
+      .filter((k) => rd.pos - k >= 0)
+      .map((k) => ({ id: rd.id, k, color: rd.flox.color, ...stopPos(path[rd.pos - k]) })),
   );
   const popViews = pops.map((p) => ({ ...p, t: Math.min(1, (now - p.at) / POP_MS) }));
   const railStops = useMemo(() => path.map((st) => stopPos(st)), [path, stopPos]);
@@ -496,38 +512,26 @@ export default function GameScreen(props: Props) {
           ))}
         </View>
         {popViews.map((p) => (
-          <View
+          <PopView
             key={`pop${p.cell}-${p.rider}`}
-            pointerEvents="none"
-            style={{
-              position: 'absolute',
-              left: RAIL + (p.cell % level.w) * cs + 1,
-              top: RAIL + Math.floor(p.cell / level.w) * cs + 1,
-              width: cs - 2,
-              height: cs - 2,
-              borderRadius: cs / 3,
-              backgroundColor: COLORS[p.color],
-              borderWidth: 2,
-              borderColor: '#FFFFFF',
-              opacity: 1 - p.t,
-              transform: [{ scale: 1 + p.t * 0.6 }],
-            }}
+            kind={popStyle}
+            x={RAIL + (p.cell % level.w) * cs + 1}
+            y={RAIL + Math.floor(p.cell / level.w) * cs + 1}
+            size={cs - 2}
+            color={COLORS[p.color]}
+            t={p.t}
           />
         ))}
         {trails.map((tr) => (
-          <View
+          <TrailDot
             key={`tr${tr.id}-${tr.k}`}
-            pointerEvents="none"
-            style={{
-              position: 'absolute',
-              left: tr.x - (tokenSize - tr.k * 4) / 2,
-              top: tr.y - (tokenSize - tr.k * 4) / 2,
-              width: tokenSize - tr.k * 4,
-              height: tokenSize - tr.k * 4,
-              borderRadius: tokenSize,
-              backgroundColor: COLORS[tr.color],
-              opacity: 0.45 - tr.k * 0.12,
-            }}
+            kind={trailStyle}
+            x={tr.x}
+            y={tr.y}
+            k={tr.k}
+            len={trailLen}
+            size={tokenSize}
+            color={tr.color}
           />
         ))}
         {tokens.map((tk) => (
@@ -749,6 +753,51 @@ export function FloxView({ flox, size, style }: { flox: Flox; size: number; colo
       </View>
     );
   }
+  if (kind === 'halka')
+    return (
+      <View
+        style={[
+          styles.flox,
+          {
+            width: size,
+            height: size,
+            borderRadius: size / 2,
+            borderWidth: Math.max(3, size * 0.16),
+            borderColor: COLORS[flox.color],
+            backgroundColor: 'rgba(10,14,24,0.85)',
+          },
+        ]}
+      >
+        <Text style={[styles.floxText, { color: COLORS[flox.color], fontSize: size * 0.34 }]}>{flox.charge}</Text>
+      </View>
+    );
+  if (kind === 'gozlu') {
+    const eye = size * 0.24;
+    const pupil = eye * 0.5;
+    return (
+      <View style={[styles.flox, { width: size, height: size, borderRadius: size / 2, backgroundColor: COLORS[flox.color] }]}>
+        {[0.2, 0.56].map((fx) => (
+          <View
+            key={fx}
+            style={{
+              position: 'absolute',
+              top: size * 0.14,
+              left: size * fx,
+              width: eye,
+              height: eye,
+              borderRadius: eye,
+              backgroundColor: '#FFFFFF',
+              alignItems: 'center',
+              justifyContent: 'flex-end',
+            }}
+          >
+            <View style={{ width: pupil, height: pupil, borderRadius: pupil, backgroundColor: '#12141C', marginBottom: 1 }} />
+          </View>
+        ))}
+        <Text style={[styles.floxText, { fontSize: size * 0.3, marginTop: size * 0.3 }]}>{flox.charge}</Text>
+      </View>
+    );
+  }
   const radius = kind === 'kup' ? size * 0.24 : size / 2;
   return (
     <View
@@ -784,7 +833,15 @@ export function Pixel(props: {
 }) {
   const { size, style } = props;
   const radius =
-    style === 'boncuk' ? size / 2 : style === 'karo' ? 1 : style === 'seker' ? size / 3 : Math.max(2, size / 5);
+    style === 'boncuk'
+      ? size / 2
+      : style === 'karo'
+        ? 1
+        : style === 'seker'
+          ? size / 3
+          : style === 'tugla'
+            ? 3
+            : Math.max(2, size / 5);
   return (
     <View
       style={{
@@ -800,7 +857,37 @@ export function Pixel(props: {
         overflow: 'hidden',
       }}
     >
-      {style === 'boncuk' ? (
+      {style === 'tugla' ? (
+        <View
+          style={{
+            position: 'absolute',
+            width: size * 0.52,
+            height: size * 0.52,
+            borderRadius: size,
+            borderWidth: 1.5,
+            borderColor: 'rgba(0,0,0,0.25)',
+            backgroundColor: 'rgba(255,255,255,0.18)',
+          }}
+        />
+      ) : style === 'kristal' ? (
+        <>
+          <View
+            style={{
+              position: 'absolute',
+              width: size,
+              height: size,
+              top: -size * 0.55,
+              left: -size * 0.55,
+              backgroundColor: '#FFFFFF',
+              opacity: 0.28,
+              transform: [{ rotate: '45deg' }],
+            }}
+          />
+          <View
+            style={{ position: 'absolute', width: size * 0.14, height: size * 0.14, borderRadius: size, backgroundColor: '#FFFFFF', opacity: 0.8, top: size * 0.16, right: size * 0.18 }}
+          />
+        </>
+      ) : style === 'boncuk' ? (
         <View
           style={[styles.gloss, { width: size * 0.3, height: size * 0.3, borderRadius: size, top: size * 0.14, left: size * 0.16 }]}
         />
@@ -818,6 +905,121 @@ export function Pixel(props: {
       )}
       {props.children}
     </View>
+  );
+}
+
+const TRAIL_LEN: Record<TrailStyle, number> = { standart: 3, kivilcim: 4, kuyruk: 6, gokkusagi: 5, baloncuk: 4 };
+
+/** Flox izi: rayda flox'un arkasında kalan efekt (marketten) */
+export function TrailDot(props: { kind: TrailStyle; x: number; y: number; k: number; len: number; size: number; color: number }) {
+  const { kind, x, y, k, len, size, color } = props;
+  const fade = 1 - k / (len + 1);
+  const d = Math.max(4, size * (kind === 'kuyruk' ? 0.9 - k * 0.11 : 0.85 - k * 0.15));
+  const base = { position: 'absolute' as const, left: x - d / 2, top: y - d / 2, width: d, height: d, borderRadius: d };
+  if (kind === 'baloncuk')
+    return <View pointerEvents="none" style={[base, { borderWidth: 2, borderColor: COLORS[color], opacity: 0.7 * fade }]} />;
+  if (kind === 'kivilcim') {
+    const sp = size * 0.18;
+    return (
+      <>
+        <View pointerEvents="none" style={[base, { backgroundColor: COLORS[color], opacity: 0.35 * fade }]} />
+        <View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            left: x + (k % 2 ? sp : -sp) - 2,
+            top: y + (k % 2 ? -sp : sp) - 2,
+            width: 4,
+            height: 4,
+            borderRadius: 2,
+            backgroundColor: '#FFFFFF',
+            opacity: fade,
+          }}
+        />
+      </>
+    );
+  }
+  const c = kind === 'gokkusagi' ? COLORS[(color + k * 2) % 8] : COLORS[color];
+  return <View pointerEvents="none" style={[base, { backgroundColor: c, opacity: (kind === 'gokkusagi' ? 0.7 : 0.5) * fade }]} />;
+}
+
+/** Piksel silinince çıkan efekt (marketten). t: 0 → 1 */
+export function PopView(props: { kind: PopStyle; x: number; y: number; size: number; color: string; t: number }) {
+  const { kind, x, y, size, color, t } = props;
+  if (kind === 'halka')
+    return (
+      <View
+        pointerEvents="none"
+        style={{
+          position: 'absolute',
+          left: x,
+          top: y,
+          width: size,
+          height: size,
+          borderRadius: size,
+          borderWidth: 3,
+          borderColor: color,
+          opacity: 1 - t,
+          transform: [{ scale: 0.6 + t * 1.4 }],
+        }}
+      />
+    );
+  if (kind === 'konfeti') {
+    const bit = Math.max(3, size * 0.3);
+    const dist = size * 0.9 * t;
+    return (
+      <>
+        {[
+          [-1, -1],
+          [1, -1],
+          [-1, 1],
+          [1, 1],
+        ].map(([dx, dy], i) => (
+          <View
+            key={i}
+            pointerEvents="none"
+            style={{
+              position: 'absolute',
+              left: x + size / 2 - bit / 2 + dx * dist,
+              top: y + size / 2 - bit / 2 + dy * dist,
+              width: bit,
+              height: bit,
+              borderRadius: 1,
+              backgroundColor: i % 2 ? '#FFFFFF' : color,
+              opacity: 1 - t,
+              transform: [{ rotate: `${Math.round(t * 180 + i * 30)}deg` }],
+            }}
+          />
+        ))}
+      </>
+    );
+  }
+  if (kind === 'yildiz')
+    return (
+      <View
+        pointerEvents="none"
+        style={{ position: 'absolute', left: x, top: y, width: size, height: size, alignItems: 'center', justifyContent: 'center' }}
+      >
+        <Text style={{ color, fontSize: size * (0.9 + t * 0.8), opacity: 1 - t, fontWeight: '900' }}>★</Text>
+      </View>
+    );
+  return (
+    <View
+      pointerEvents="none"
+      style={{
+        position: 'absolute',
+        left: x,
+        top: y,
+        width: size,
+        height: size,
+        borderRadius: size / 3,
+        backgroundColor: color,
+        borderWidth: 2,
+        borderColor: '#FFFFFF',
+        opacity: 1 - t,
+        transform: [{ scale: 1 + t * 0.6 }],
+      }}
+    />
   );
 }
 

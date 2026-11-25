@@ -10,6 +10,7 @@ import { Progress } from '../game/storage';
 import { t } from '../i18n';
 import { mapForLevel, mapProgress } from '../core/maps';
 import { mapName } from './MapsScreen';
+import { pedestalFor } from '../game/skins';
 import { Card, Coins, kit } from './kit';
 import MissionsCard from './MissionsCard';
 import PixelArt from './PixelArt';
@@ -38,6 +39,7 @@ export default function HomeScreen(p: Props) {
   const next = album.find((a) => !a.done);
   const starter = starterOfferActive(progress, Date.now());
   const shown = showcaseEntries(progress);
+  const pd = pedestalFor(progress.cosmetics.pedestal);
   const map = mapForLevel(n);
   const mp = mapProgress(map, n);
 
@@ -59,7 +61,10 @@ export default function HomeScreen(p: Props) {
       {shown.length > 0 && (
         <Pressable onPress={p.onAlbum} style={styles.showcase}>
           {shown.map((e) => (
-            <View key={e.pic.key} style={styles.showItem}>
+            <View
+              key={e.pic.key}
+              style={[styles.showItem, { backgroundColor: pd.bg, borderColor: pd.border, borderBottomColor: pd.base }]}
+            >
               <PixelArt pic={e.pic} size={72} />
             </View>
           ))}
@@ -147,8 +152,8 @@ const styles = StyleSheet.create({
     backgroundColor: UI.panel,
     alignItems: 'center',
     justifyContent: 'center',
-    borderBottomWidth: 4,
-    borderBottomColor: UI.gold,
+    borderWidth: 2,
+    borderBottomWidth: 6,
   },
   play: {
     marginTop: 28,

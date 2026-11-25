@@ -59,7 +59,7 @@ import MarketScreen from './src/ui/MarketScreen';
 import DailyScreen from './src/ui/DailyScreen';
 import SettingsScreen from './src/ui/SettingsScreen';
 import TabBar, { Tab } from './src/ui/TabBar';
-import { buyItem, equipItem, Wallet } from './src/core/market';
+import { buyItem, buySet, equipItem, Wallet } from './src/core/market';
 
 type Screen = { kind: 'tabs' } | { kind: 'level'; n: number } | { kind: 'daily'; key: string } | { kind: 'maps' };
 
@@ -306,12 +306,14 @@ export default function App() {
     boosters: p.boosters,
     owned: p.owned,
     cosmetics: p.cosmetics,
+    level: p.level,
   });
 
   const marketBuy = useCallback(
     (id: string) =>
       update((p) => {
-        const r = buyItem(walletOf(p), id);
+        const r = id.startsWith('set:') ? buySet(walletOf(p), id) : buyItem(walletOf(p), id, todayUTC());
+        if (r.ok) track({ name: 'market_buy', item: id });
         return r.ok ? { ...p, ...r.wallet } : p;
       }),
     [update],
@@ -402,6 +404,7 @@ export default function App() {
                   {tab === 'market' && (
                     <MarketScreen
                       wallet={walletOf(progress)}
+                      dateKey={todayUTC()}
                       onBuy={marketBuy}
                       onEquip={marketEquip}
                       onOpenShop={() => money.openShop()}
