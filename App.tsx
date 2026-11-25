@@ -61,7 +61,7 @@ import SettingsScreen from './src/ui/SettingsScreen';
 import TabBar, { Tab } from './src/ui/TabBar';
 import { buyItem, equipItem, Wallet } from './src/core/market';
 
-type Screen = { kind: 'tabs' } | { kind: 'level' } | { kind: 'daily'; key: string } | { kind: 'maps' };
+type Screen = { kind: 'tabs' } | { kind: 'level'; n: number } | { kind: 'daily'; key: string } | { kind: 'maps' };
 
 export default function App() {
   const [progress, setProgress] = useState<Progress | null>(null);
@@ -151,7 +151,8 @@ export default function App() {
   // Dil her çizimden önce ayarlanır; Ayarlar'dan değişince bütün ekranlar yeniden çizilir
   setLang(resolveLang(progress?.lang ?? 'auto', deviceLang));
 
-  const n = progress?.level ?? 1;
+  // Oyun ekranı açıldığı seviyeyi kendisi tutar: kazanınca progress.level artsa da kazanma kartı ekranda kalır
+  const n = screen.kind === 'level' ? screen.n : (progress?.level ?? 1);
   const level = useMemo(() => levelFor(n), [n]);
   const today = dailyKey(new Date());
   const dailyKeyOpen = screen.kind === 'daily' ? screen.key : null;
@@ -164,10 +165,18 @@ export default function App() {
     (r: WinResult) =>
       update((before) => {
         // Haritanın son seviyesi: ödül kazanınca hemen verilir (bir kez)
+        // Aynı seviye iki kez ödül vermesin (ör. eski bir kayıttan tekrar oynanırsa)
+        if (before.level !== n) return before;
         const ending = mapEndingAt(before.level);
         const p = ending ? grantMapReward(before, ending.index, before.level + 1) : before;
+        // Seviye kazanıldığı anda ilerler: Ana menüye dönülse de kaldığı yerden devam edilir
+        const nextLevel = p.level + 1;
+        const starterOfferAt =
+          p.starterOfferAt === 0 && nextLevel > ECONOMY.starterUnlockLevel ? Date.now() : p.starterOfferAt;
         return {
         ...p,
+        level: nextLevel,
+        starterOfferAt,
         coins: p.coins + coinsForLevel(r.stars, !!level.hard),
         piggy: piggyAfterLevel(p.piggy, p.level),
         stars: { ...p.stars, [level.id]: Math.max(r.stars, p.stars[level.id] ?? 0) },
@@ -181,7 +190,7 @@ export default function App() {
         }),
         };
       }),
-    [update, level],
+    [update, level, n],
   );
 
   /** Günlük ödül yalnızca günün ilk bitirişinde; her 7 günlük seride bonus. */
@@ -324,13 +333,13 @@ export default function App() {
   }, []);
 
   /** "Sonraki seviye": geçiş reklamı kurallarına göre belki reklam, sonra yeni seviye. */
-  const onNext = useCallback(async () => {
+  const onNext = useCallback(async (playedN: number) => {
     const p = progressRef.current;
     if (!p) return;
     const ads = rollDay(p.ads, todayUTC());
     const decision = shouldShowInterstitial(
       ads,
-      { level: p.level, won: true, isDaily: false, online: Ads.interstitialReady(), now: trustedNow(p) },
+      { level: playedN, won: true, isDaily: false, online: Ads.interstitialReady(), now: trustedNow(p) },
       getAdRules(),
     );
     let after = ads;
@@ -346,12 +355,8 @@ export default function App() {
         ]);
       }
     }
-    update((cur) => {
-      const level = cur.level + 1;
-      const starterOfferAt =
-        cur.starterOfferAt === 0 && level > ECONOMY.starterUnlockLevel ? Date.now() : cur.starterOfferAt;
-      return { ...cur, level, ads: after, starterOfferAt };
-    });
+    update((cur) => ({ ...cur, ads: after }));
+    setScreen({ kind: 'level', n: Math.max(progressRef.current?.level ?? playedN + 1, playedN + 1) });
   }, [update]);
 
   return (
@@ -375,7 +380,7 @@ export default function App() {
                     <HomeScreen
                       progress={progress}
                       todayKey={today}
-                      onPlay={() => setScreen({ kind: 'level' })}
+                      onPlay={() => setScreen({ kind: 'level', n: progress.level })}
                       onDaily={() => setTab('daily')}
                       onAlbum={() => setTab('album')}
                       onMaps={() => setScreen({ kind: 'maps' })}
@@ -450,7 +455,7 @@ export default function App() {
                 winPicture={winPicture}
                 winMap={winMap}
                 nextLabel={t('game.next')}
-                onNext={onNext}
+                onNext={() => onNext(n)}
                 onExit={() => setScreen({ kind: 'tabs' })}
               />
             )}
