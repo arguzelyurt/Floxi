@@ -76,6 +76,7 @@ export default function App() {
     setProgress((p) => {
       if (!p) return p;
       const next = fn(p);
+      if (next === p) return p;
       saveProgress(next);
       return next;
     });
@@ -454,6 +455,12 @@ export default function App() {
                 onWin={onLevelWin}
                 winPicture={winPicture}
                 winMap={winMap}
+                resume={progress.savedLevel?.id === level.id ? progress.savedLevel.s : undefined}
+                onSave={(st) =>
+                  update((p) =>
+                    st ? { ...p, savedLevel: { id: level.id, s: st } } : p.savedLevel ? { ...p, savedLevel: null } : p,
+                  )
+                }
                 nextLabel={t('game.next')}
                 onNext={() => onNext(n)}
                 onExit={() => setScreen({ kind: 'tabs' })}

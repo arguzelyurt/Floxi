@@ -5,6 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AdState, Booster, initialAdState } from '../core/monetization';
 import type { MissionState } from '../core/missions';
 import { DEFAULT_COSMETICS } from '../core/market';
+import type { State } from '../core/rules';
 import { LangSetting, t } from '../i18n';
 import { hasNativeModule } from '../services/native';
 
@@ -52,6 +53,8 @@ export interface Progress {
   showcase: string[];
   /** Ödülü alınmış haritalar (indeks) */
   mapsClaimed: number[];
+  /** Yarım kalan seviye: kaldığı yerden devam (seviye kimliği + durum) */
+  savedLevel: { id: string; s: State } | null;
   /** Saat geri alma hilesine karşı: en son görülen zaman */
   lastSeenAt: number;
 }
@@ -84,6 +87,7 @@ export const defaultProgress = (): Progress => ({
   notifAsked: false,
   showcase: [],
   mapsClaimed: [],
+  savedLevel: null,
   lastSeenAt: Date.now(),
 });
 
@@ -136,6 +140,7 @@ export async function loadProgress(): Promise<Progress> {
     p.daily = { ...d.daily, ...saved.daily };
     p.cosmetics = { ...d.cosmetics, ...saved.cosmetics };
     if (!Array.isArray(p.mapsClaimed)) p.mapsClaimed = [];
+    if (!p.savedLevel || typeof p.savedLevel.id !== 'string' || !p.savedLevel.s) p.savedLevel = null;
     if (!Array.isArray(p.showcase)) p.showcase = [];
     p.showcase = p.showcase.filter((k) => typeof k === 'string').slice(-3);
     if (!(p.speed in SPEED_MS)) p.speed = 'normal';

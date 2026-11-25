@@ -2,8 +2,6 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import {
-  addDockSlot,
-  applyMove,
   conveyorPath,
   EMPTY,
   Flox,
@@ -12,14 +10,27 @@ import {
   Level,
   lockRemaining,
   Move,
-  MoveResult,
-  rescueWithExtraSlot,
   runLoop,
   starsFor,
   State,
   Stop,
 } from '../core/rules';
 import { hint } from '../core/solver';
+import {
+  addSlot,
+  canLaunch,
+  finish,
+  isIdle,
+  launch as railLaunch,
+  MAX_ON_RAIL,
+  onRail,
+  RailHit,
+  railFrom,
+  RailState,
+  rescue,
+  riderFlox,
+  tick,
+} from '../core/rail';
 import { Booster, boosterName, ECONOMY } from '../core/monetization';
 import { t } from '../i18n';
 import { Picture, pictureName } from '../core/pictures';
@@ -74,16 +85,15 @@ interface Props {
   winPicture?: Picture;
   /** Bu seviye bir haritayı bitiriyorsa: kazanınca harita ödülü gösterilir */
   winMap?: MapDef;
+  /** Yarım kalan seviyeden devam (kayıtlı durum) */
+  resume?: State;
+  /** Seviye durumu değişince kayıt (null = kayıt sil). Yalnızca ray boşken çağrılır. */
+  onSave?(s: State | null): void;
 }
 
-interface Anim {
-  r: MoveResult;
-  move: Move;
-  start: number;
-  end: number;
-  /** Durak başına süre (hız ayarı) */
-  stepMs: number;
-}
+/** Kayıtlı durum bu seviyeye ait ve oynanabilir mi? */
+const validResume = (level: Level, st?: State): st is State =>
+  !!st && st.status === 'playing' && st.cells.length === level.cells.length && st.lanes.length === level.lanes.length;
 
 /** Flox ve piksel görünümü (marketten) + renk körlüğü: her bileşene tek tek geçmemek için */
 const SkinCtx = createContext<{ flox: FloxStyle; colorBlind: boolean }>({ flox: 'damla', colorBlind: false });
@@ -111,10 +121,15 @@ export default function GameScreen(props: Props) {
     [progress.cosmetics.flox, colorBlind],
   );
   const { width, height } = useWindowDimensions();
-  const [s, setS] = useState<State>(() => initialState(level));
-  const [history, setHistory] = useState<State[]>([]);
-  const [anim, setAnim] = useState<Anim | null>(null);
-  const [step, setStep] = useState(0);
+  const [rail, setRail] = useState<RailState>(() =>
+    railFrom(validResume(level, props.resume) ? props.resume : initialState(level)),
+  );
+  const s = rail.s;
+  const railRef = useRef(rail);
+  railRef.current = rail;
+  const [history, setHistory] = useState<RailState[]>([]);
+  const [pops, setPops] = useState<(RailHit & { at: number })[]>([]);
+  const [, setFrame] = useState(0);
   const [preview, setPreview] = useState<{ cells: Set<number>; left: number } | null>(null);
   const [hintMove, setHintMove] = useState<Move | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -126,6 +141,8 @@ export default function GameScreen(props: Props) {
   const stuckReported = useRef<State | null>(null);
 
   const path = useMemo(() => conveyorPath(level.w, level.h), [level]);
+  const busy = !isIdle(rail) && s.status === 'playing';
+  const animating = busy || pops.length > 0;
   const [wonCoins, setWonCoins] = useState(0);
   const earned = wonCoins;
   const onWinRef = useRef(props.onWin);
@@ -154,43 +171,74 @@ export default function GameScreen(props: Props) {
     [cs, boardW, boardH],
   );
 
-  // Animasyon döngüsü
+  // Ray döngüsü: hız ayarına göre adım atar, silinen piksellerin patlamasını söndürür
+  const stepMs = SPEED_MS[progress.speed];
   useEffect(() => {
-    if (!anim) return;
+    if (!animating) return;
     let raf = 0;
+    let last = Date.now();
+    let acc = 0;
     const loop = () => {
-      const st = Math.floor((Date.now() - anim.start) / anim.stepMs);
-      if (st >= anim.end) {
-        const next = anim.r.state;
-        setS(next);
-        setAnim(null);
-        if (next.status === 'won') haptic('win');
-        else if (next.status === 'stuck') haptic('stuck');
-        return;
+      const now = Date.now();
+      acc += now - last;
+      last = now;
+      let r = railRef.current;
+      const fresh: RailHit[] = [];
+      while (acc >= stepMs && !isIdle(r) && r.s.status === 'playing') {
+        r = tick(level, r);
+        fresh.push(...r.hits);
+        acc -= stepMs;
       }
-      setStep(st);
+      if (isIdle(r) || r.s.status !== 'playing') acc = 0;
+      if (r !== railRef.current) {
+        railRef.current = r;
+        setRail(r);
+      }
+      setPops((ps) => {
+        const kept = ps.filter((x) => now - x.at < POP_MS);
+        return fresh.length ? [...kept, ...fresh.map((h) => ({ ...h, at: now }))] : kept.length === ps.length ? ps : kept;
+      });
+      setFrame(now);
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
-  }, [anim]);
+  }, [animating, level, stepMs]);
+
+  // Kazanma / tıkanma titreşimi
+  const lastStatus = useRef(s.status);
+  useEffect(() => {
+    if (s.status === lastStatus.current) return;
+    lastStatus.current = s.status;
+    if (s.status === 'won') haptic('win');
+    else if (s.status === 'stuck') haptic('stuck');
+  }, [s.status]);
+
+  // Yarım kalan seviye kaydı: ray boşken, oynanırken
+  const onSaveRef = useRef(props.onSave);
+  onSaveRef.current = props.onSave;
+  useEffect(() => {
+    if (!onSaveRef.current || busy) return;
+    if (s.status === 'won') onSaveRef.current(null);
+    else if (s.launches > 0) onSaveRef.current(s);
+  }, [s, busy]);
 
   // Kazanınca ödül bir kez verilir
   useEffect(() => {
-    if (anim || s.status !== 'won' || wonReported.current) return;
+    if (s.status !== 'won' || wonReported.current) return;
     wonReported.current = true;
     const stars = starsFor(s);
     // Ödül kazanma anında sabitlenir (ör. Günlük Mozaik ödülü yalnızca ilk bitirişte)
     setWonCoins(coinsForRef.current(stars));
     onWinRef.current({ stars, launches: s.launches, parked: s.parked, usedHelp: usedHelp.current });
     track({ name: 'level_complete', level: trackId, launches: s.launches, parked: s.parked, stars });
-  }, [s, anim, trackId]);
+  }, [s, trackId]);
 
   useEffect(() => {
-    if (anim || s.status !== 'stuck' || stuckReported.current === s) return;
+    if (s.status !== 'stuck' || stuckReported.current === s) return;
     stuckReported.current = s;
     track({ name: 'level_stuck', level: trackId, launches: s.launches, overflow: !!s.overflow });
-  }, [s, anim, trackId]);
+  }, [s, trackId]);
 
   /** Envanterden, yoksa coin ile. İkisi de yoksa dükkanı açar. */
   const spend = (kind: Booster): boolean => {
@@ -212,55 +260,66 @@ export default function GameScreen(props: Props) {
   };
 
   const launch = (move: Move) => {
-    if (anim || s.status !== 'playing') return;
+    const cur = railRef.current;
+    if (cur.s.status !== 'playing') return;
+    if (!canLaunch(level, cur, move)) {
+      if (onRail(cur) >= MAX_ON_RAIL) setMessage(t('game.railFull'));
+      return;
+    }
     if (move.from === 'lane' && move.depth) {
       if (!spend('pick')) return;
       setPickMode(false);
     }
-    const r = applyMove(level, s, move);
-    const last = r.hits[r.hits.length - 1];
-    const end = r.left === 0 && last ? last.step + 1 : path.length;
-    setHistory((h) => [...h, s]);
+    const next = railLaunch(level, cur, move);
+    setHistory((h) => [...h, cur]);
+    railRef.current = next;
+    setRail(next);
+    if (next.hits.length) setPops((ps) => [...ps, ...next.hits.map((h) => ({ ...h, at: Date.now() }))]);
     setPreview(null);
     setHintMove(null);
     setMessage(null);
-    setStep(0);
-    setAnim({ r, move, start: Date.now(), end, stepMs: SPEED_MS[progress.speed] });
     haptic('tap');
   };
 
-  /** Tura dokununca animasyonu bitir (sabırsız oyuncu için) */
+  /** Tura dokununca raydakiler hemen bitsin (sabırsız oyuncu için) */
   const skipAnim = () => {
-    if (!anim) return;
-    setAnim({ ...anim, start: Date.now() - anim.end * anim.stepMs });
+    if (!busy) return;
+    const next = finish(level, railRef.current);
+    railRef.current = next;
+    setRail(next);
   };
 
   const showPreview = (flox: Flox) => {
-    if (anim) return;
+    if (busy) return;
     const r = runLoop(s.cells, level.w, level.h, flox);
     setPreview({ cells: new Set(r.hits.map((h) => h.cell)), left: r.left });
   };
 
   const undo = () => {
-    if (anim || history.length === 0) return;
+    if (history.length === 0 || s.status === 'won') return;
     if (!spend('undo')) return;
-    setS(history[history.length - 1]);
+    const prev = history[history.length - 1];
+    railRef.current = prev;
+    setRail(prev);
     setHistory((h) => h.slice(0, -1));
     setHintMove(null);
     setPickMode(false);
   };
 
   const restart = () => {
-    if (anim) return;
-    setS(initialState(level));
+    const fresh = railFrom(initialState(level));
+    railRef.current = fresh;
+    setRail(fresh);
     setHistory([]);
+    setPops([]);
     setHintMove(null);
     setPickMode(false);
     setMessage(null);
+    props.onSave?.(null);
   };
 
   const askHint = () => {
-    if (anim || s.status !== 'playing') return;
+    if (busy || s.status !== 'playing') return;
     const m = hint(level, s);
     if (!m) {
       setMessage(t('game.noSolution'));
@@ -271,7 +330,7 @@ export default function GameScreen(props: Props) {
   };
 
   const togglePick = () => {
-    if (anim || s.status !== 'playing') return;
+    if (s.status !== 'playing') return;
     const hasBehind = s.lanes.some((l, i) => l.length > 1 && lockRemaining(level, s, i) === 0);
     if (!hasBehind) {
       setMessage(t('game.noPick'));
@@ -286,9 +345,9 @@ export default function GameScreen(props: Props) {
   };
 
   const extraSlot = () => {
-    if (anim || s.status !== 'playing') return;
+    if (s.status !== 'playing') return;
     if (!spend('extraSlot')) return;
-    setS(addDockSlot(level, s));
+    setRail((cur) => addSlot(level, cur));
   };
 
   // Tıkanınca kurtarma
@@ -305,12 +364,12 @@ export default function GameScreen(props: Props) {
     usedHelp.current = true;
     update((p) => ({ ...p, rescueAdsToday: { day: today, count: rescueAdsUsed + 1 } }));
     track({ name: 'booster_used', kind: 'extraSlot', source: 'ad' });
-    setS((cur) => rescueWithExtraSlot(level, cur));
+    setRail((cur) => rescue(level, cur));
   };
 
   const rescueBySpend = () => {
     if (!spend('extraSlot')) return;
-    setS(rescueWithExtraSlot(level, s));
+    setRail((cur) => rescue(level, cur));
   };
 
   const doubleCoins = async () => {
@@ -323,35 +382,21 @@ export default function GameScreen(props: Props) {
     update((p) => ({ ...p, coins: p.coins + earned }));
   };
 
-  // Ekranda gösterilen durum (animasyon sırasında flox kuyruktan çıkmış görünür)
-  const removed = new Set<number>();
-  let carried = 0;
-  if (anim) {
-    for (const h of anim.r.hits) if (h.step <= step) removed.add(h.cell);
-    carried = anim.r.flox.charge - removed.size;
-  }
-  const viewCells = s.cells.map((c, i) => (removed.has(i) ? EMPTY : c));
-  const viewLanes = anim ? anim.r.state.lanes : s.lanes;
-  const viewDock =
-    anim && anim.move.from === 'dock' ? s.dock.filter((_, i) => i !== anim.move.index) : s.dock;
-
-  const token = anim ? stopPos(path[Math.min(step, path.length - 1)]) : null;
+  // Ekranda gösterilen durum: ray simülasyonu doğrudan çizilir
+  const now = Date.now();
   const tokenSize = RAIL - 2;
-  const trail = anim
-    ? [1, 2, 3].filter((k) => step - k >= 0).map((k) => ({ k, ...stopPos(path[step - k]) }))
-    : [];
-  const pops = anim
-    ? anim.r.hits
-        .filter((h) => h.step <= step && (step - h.step) * anim.stepMs < POP_MS)
-        .map((h) => ({ cell: h.cell, t: ((step - h.step) * anim.stepMs) / POP_MS, color: s.cells[h.cell] }))
-    : [];
+  const tokens = rail.riders.map((rd) => ({ rd, ...stopPos(path[Math.min(rd.pos, path.length - 1)]) }));
+  const trails = rail.riders.flatMap((rd) =>
+    [1, 2, 3].filter((k) => rd.pos - k >= 0).map((k) => ({ id: rd.id, k, color: rd.flox.color, ...stopPos(path[rd.pos - k]) })),
+  );
+  const popViews = pops.map((p) => ({ ...p, t: Math.min(1, (now - p.at) / POP_MS) }));
   const railStops = useMemo(() => path.map((st) => stopPos(st)), [path, stopPos]);
 
   const infoText = preview
     ? preview.left === 0
       ? t('game.previewClean')
       : t('game.previewPark', { hits: preview.cells.size, left: preview.left })
-    : (message ?? t('game.idle', { n: floxesLeft(anim ? anim.r.state : s) }));
+    : (message ?? t('game.idle', { n: floxesLeft(s) }));
 
   const boosterLabel = (k: Booster) =>
     progress.boosters[k] > 0 ? t('game.uses', { n: progress.boosters[k] }) : `● ${ECONOMY.prices[k]}`;
@@ -364,7 +409,7 @@ export default function GameScreen(props: Props) {
     <SkinCtx.Provider value={skin}>
     <View style={[styles.root, { backgroundColor: theme.bg }]}>
       <View style={styles.header}>
-        <Pressable onPress={props.onExit} hitSlop={12} disabled={!!anim} style={styles.headerSide}>
+        <Pressable onPress={props.onExit} hitSlop={12} style={styles.headerSide}>
           <Text style={styles.headerBtn}>{t('common.back')}</Text>
         </Pressable>
         <View style={{ alignItems: 'center' }}>
@@ -421,9 +466,9 @@ export default function GameScreen(props: Props) {
             <View key={y} style={{ flexDirection: 'row' }}>
               {Array.from({ length: level.w }, (_, x) => {
                 const i = y * level.w + x;
-                const c = viewCells[i];
+                const c = s.cells[i];
                 const marked = preview?.cells.has(i);
-                const secret = s.hidden[i] && !removed.has(i);
+                const secret = s.hidden[i];
                 return (
                   <View key={x} style={{ width: cs, height: cs, padding: 1 }}>
                     {c !== EMPTY && (
@@ -450,9 +495,9 @@ export default function GameScreen(props: Props) {
             </View>
           ))}
         </View>
-        {pops.map((p) => (
+        {popViews.map((p) => (
           <View
-            key={`pop${p.cell}`}
+            key={`pop${p.cell}-${p.rider}`}
             pointerEvents="none"
             style={{
               position: 'absolute',
@@ -469,31 +514,31 @@ export default function GameScreen(props: Props) {
             }}
           />
         ))}
-        {anim &&
-          trail.map((t) => (
-            <View
-              key={`tr${t.k}`}
-              pointerEvents="none"
-              style={{
-                position: 'absolute',
-                left: t.x - (tokenSize - t.k * 4) / 2,
-                top: t.y - (tokenSize - t.k * 4) / 2,
-                width: tokenSize - t.k * 4,
-                height: tokenSize - t.k * 4,
-                borderRadius: tokenSize,
-                backgroundColor: COLORS[anim.r.flox.color],
-                opacity: 0.45 - t.k * 0.12,
-              }}
-            />
-          ))}
-        {token && anim && (
+        {trails.map((tr) => (
           <View
+            key={`tr${tr.id}-${tr.k}`}
             pointerEvents="none"
-            style={{ position: 'absolute', left: token.x - tokenSize / 2, top: token.y - tokenSize / 2 }}
+            style={{
+              position: 'absolute',
+              left: tr.x - (tokenSize - tr.k * 4) / 2,
+              top: tr.y - (tokenSize - tr.k * 4) / 2,
+              width: tokenSize - tr.k * 4,
+              height: tokenSize - tr.k * 4,
+              borderRadius: tokenSize,
+              backgroundColor: COLORS[tr.color],
+              opacity: 0.45 - tr.k * 0.12,
+            }}
+          />
+        ))}
+        {tokens.map((tk) => (
+          <View
+            key={`tk${tk.rd.id}`}
+            pointerEvents="none"
+            style={{ position: 'absolute', left: tk.x - tokenSize / 2, top: tk.y - tokenSize / 2 }}
           >
-            <FloxView flox={{ color: anim.r.flox.color, charge: carried }} size={tokenSize} />
+            <FloxView flox={riderFlox(tk.rd)} size={tokenSize} />
           </View>
-        )}
+        ))}
       </Pressable>
 
       <Text style={styles.info}>{infoText}</Text>
@@ -501,7 +546,7 @@ export default function GameScreen(props: Props) {
       {/* Rıhtım */}
       <View style={[styles.dock, { backgroundColor: theme.panel }]}>
         {Array.from({ length: s.dockSize }, (_, i) => {
-          const f = viewDock[i];
+          const f = s.dock[i];
           const move: Move = { from: 'dock', index: i };
           return (
             <View key={i} style={[styles.slot, { backgroundColor: theme.board }]}>
@@ -523,10 +568,10 @@ export default function GameScreen(props: Props) {
 
       {/* Şeritler */}
       <View style={styles.lanes}>
-        {viewLanes.map((lane, li) => {
+        {s.lanes.map((lane, li) => {
           const rest = lane.slice(0, LANE_VISIBLE);
           const hidden = lane.length - rest.length;
-          const lockLeft = lockRemaining(level, anim ? anim.r.state : s, li);
+          const lockLeft = lockRemaining(level, s, li);
           if (lockLeft > 0 && lane.length > 0)
             return (
               <View key={li} style={styles.lane}>
@@ -572,14 +617,14 @@ export default function GameScreen(props: Props) {
           icon="↶"
           label={boosterName('undo')}
           badge={boosterBadge('undo')}
-          disabled={history.length === 0 || !!anim || s.status === 'won'}
+          disabled={history.length === 0 || s.status === 'won'}
           onPress={undo}
         />
         <Tool
           icon="💡"
           label={boosterName('hint')}
           badge={boosterBadge('hint')}
-          disabled={!!anim || s.status !== 'playing'}
+          disabled={busy || s.status !== 'playing'}
           onPress={askHint}
         />
         <Tool
@@ -587,20 +632,20 @@ export default function GameScreen(props: Props) {
           label={boosterName('pick')}
           badge={boosterBadge('pick')}
           active={pickMode}
-          disabled={!!anim || s.status !== 'playing'}
+          disabled={s.status !== 'playing'}
           onPress={togglePick}
         />
         <Tool
           icon="＋"
           label={boosterName('extraSlot')}
           badge={boosterBadge('extraSlot')}
-          disabled={!!anim || s.status !== 'playing'}
+          disabled={s.status !== 'playing'}
           onPress={extraSlot}
         />
-        <Tool icon="↻" label={t('game.restart')} disabled={!!anim} onPress={restart} />
+        <Tool icon="↻" label={t('game.restart')} onPress={restart} />
       </View>
 
-      {!anim && s.status === 'won' && (
+      {s.status === 'won' && pops.length === 0 && (
         <Overlay>
           <Text style={styles.overTitle}>{starsFor(s) === 3 ? t('game.perfect') : t('game.done')}</Text>
           <Text style={styles.stars}>
@@ -648,7 +693,7 @@ export default function GameScreen(props: Props) {
           {props.nextLabel !== t('common.home') && <TextLink label={t('common.home')} onPress={props.onExit} />}
         </Overlay>
       )}
-      {!anim && s.status === 'stuck' && (
+      {s.status === 'stuck' && (
         <Overlay>
           <Text style={styles.overTitle}>{t('game.stuck')}</Text>
           <Text style={styles.overSub}>

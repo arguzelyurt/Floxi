@@ -70,6 +70,7 @@ export const en: Record<keyof typeof tr, string> = {
   'game.previewClean': 'Clean run: uses its whole charge',
   'game.previewPark': 'Clears {hits} pixels, {left} charge left → parks in the dock',
   'game.idle': 'Floxes left: {n}',
+  'game.railFull': 'The rail is full, wait a moment',
   'game.lockFlox': '{n} floxes',
   'game.restart': 'Restart',
   'game.perfect': 'Perfect!',

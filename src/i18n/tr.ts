@@ -74,6 +74,7 @@ export const tr = {
   'game.previewClean': 'Temiz tur: şarjın tamamı kullanılır',
   'game.previewPark': '{hits} piksel siler, {left} şarj artar → rıhtıma park eder',
   'game.idle': 'Kalan flox: {n}',
+  'game.railFull': 'Rayda yer yok, biraz bekle',
   'game.lockFlox': '{n} flox',
   'game.restart': 'Baştan',
   'game.perfect': 'Mükemmel!',
