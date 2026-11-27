@@ -2,8 +2,10 @@
 import React from 'react';
 import { View } from 'react-native';
 
+/** Yüzen ada: üstte elips yüzey, altında sivri, kırık kenarlı kaya. */
 export function IslandBody({ w, top, rock, glow }: { w: number; top: string; rock: string; glow?: boolean }) {
-  const h = Math.round(w * 0.26);
+  const h = Math.round(w * 0.27);
+  const rw = Math.round(w * 0.8);
   return (
     <View style={{ alignItems: 'center' }}>
       <View
@@ -13,15 +15,50 @@ export function IslandBody({ w, top, rock, glow }: { w: number; top: string; roc
           borderRadius: w / 2,
           backgroundColor: top,
           borderBottomWidth: 6,
-          borderBottomColor: 'rgba(0,0,0,0.2)',
+          borderBottomColor: 'rgba(0,0,0,0.18)',
+          zIndex: 1,
           ...(glow
-            ? { shadowColor: '#F2C94C', shadowOpacity: 0.8, shadowRadius: 14, shadowOffset: { width: 0, height: 0 } }
+            ? { shadowColor: '#FFC93C', shadowOpacity: 0.6, shadowRadius: 16, shadowOffset: { width: 0, height: 0 } }
             : null),
         }}
       />
-      <View style={{ width: w * 0.8, height: 12, marginTop: -5, backgroundColor: rock, borderBottomLeftRadius: 4, borderBottomRightRadius: 4 }} />
-      <View style={{ width: w * 0.56, height: 11, backgroundColor: rock, opacity: 0.85, borderBottomLeftRadius: 3, borderBottomRightRadius: 3 }} />
-      <View style={{ width: w * 0.3, height: 9, backgroundColor: rock, opacity: 0.7, borderBottomLeftRadius: 3, borderBottomRightRadius: 3 }} />
+      <View style={{ width: rw, height: Math.round(w * 0.36), marginTop: -4 }}>
+        {/* ana sivri kaya */}
+        <View style={tri(rw, Math.round(w * 0.36), rock, 0, 0)} />
+        {/* soldaki kırık parça */}
+        <View style={tri(Math.round(rw * 0.5), Math.round(w * 0.22), rock, 0, 0)} />
+        {/* sağdaki kırık parça, biraz koyu */}
+        <View style={tri(Math.round(rw * 0.42), Math.round(w * 0.18), 'rgba(0,0,0,0.18)', Math.round(rw * 0.58), 0)} />
+      </View>
+    </View>
+  );
+}
+
+/** Aşağı bakan üçgen (kenarlıklarla) */
+function tri(w: number, h: number, color: string, left: number, top: number) {
+  return {
+    position: 'absolute' as const,
+    left,
+    top,
+    width: 0,
+    height: 0,
+    borderLeftWidth: w / 2,
+    borderRightWidth: w / 2,
+    borderTopWidth: h,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderTopColor: color,
+  };
+}
+
+/** Geniş ada zemini altındaki sivri kaya (harita içi) */
+export function RockBase({ w, rock }: { w: number; rock: string }) {
+  const rw = Math.round(w * 0.8);
+  return (
+    <View style={{ width: rw, height: 64, alignSelf: 'center', marginTop: -2 }}>
+      <View style={tri(rw, 64, rock, 0, 0)} />
+      <View style={tri(Math.round(rw * 0.45), 40, rock, Math.round(rw * 0.02), 0)} />
+      <View style={tri(Math.round(rw * 0.35), 30, 'rgba(0,0,0,0.18)', Math.round(rw * 0.62), 0)} />
     </View>
   );
 }

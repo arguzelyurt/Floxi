@@ -83,3 +83,17 @@ export function Move({
   if (kind === 'ring' && off) anim.opacity = 0;
   return <Animated.View style={[style as ViewStyle, anim as ViewStyle]}>{children}</Animated.View>;
 }
+
+/** Ekranı soldan sağa tek yönde geçen öğe (kuşlar) */
+export function Fly({ width, ms, phase = 0, top, off, children }: { width: number; ms: number; phase?: number; top: number; off?: boolean; children: React.ReactNode }) {
+  const t = useLoop(ms, !off, phase);
+  if (off) return null;
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={{ position: 'absolute', left: 0, top, transform: [{ translateX: t.interpolate({ inputRange: [0, 1], outputRange: [-40, width + 40] }) }] }}
+    >
+      {children}
+    </Animated.View>
+  );
+}
