@@ -72,6 +72,13 @@ Not: İlk planda "Süper Flox" (bir rengi tek turda temizle) vardı. Çıkarıld
 - [x] Tutarlı tasarım dili: lacivert palet, kartlar, oyunda alttaki rozetli araç kartları
 - [x] Alt sekme çubuğu: Ana sayfa · Günlük · Market · Koleksiyon · Ayarlar (Günlük sekmesinde haftalık seri takvimi; Ayarlar'da geliştirme derlemesine özel seviye atlama)
 
+### Faz 4.5 — Hareketli harita: Ray Adaları
+- [x] Genel harita: her harita gökyüzünde inip kalkan bir ada, adalar rayla bağlı; flox'lar raydan bulunduğun adaya akar. Adanın üstünde haritanın ilk koleksiyon resmi (bulunduğun adada ilerleme kadar renkli). Biten ada ✓, bulunduğun ada parlar (halka, bayrak, sandık, "Gir"), sıradaki kilitli ada bulut altında kilit titrer, uzaktakiler soluk; piksel kuşlar ve yıldızlar
+- [x] Harita içi: seviyeler büyük adada yılan gibi kıvrılan ray üzerinde duraklar (biten yeşil + yıldız, bulunduğun sarı + "Buradasın", kalan gri, Zor seviyede "!", resim seviyesi resim çerçevesi), rayın sonunda harita ödülü sandığı, altta "Sıradaki · Oyna"
+- [x] Seviye kartı: durağa dokununca; tahta önizlemesi etrafında dönen flox'lar, yıldızlar, en fazla coin, harita ödülüne kalan seviye, sıradaki resim. Biten seviye tekrar oynanabilir (yalnız yıldız rekoru güncellenir, coin yok)
+- [x] Yerleşim hesapları `src/core/mapLayout.ts` (testli), animasyonlar Animated + native driver, yeni yerel paket yok. "Hareketi azalt" açıksa animasyonlar durur
+- [ ] Telefonda his testi: animasyon akıcılığı, 45 seviyelik haritalarda kaydırma
+
 ### Faz 4 — Yayın (şu an) · ayrıntı: docs/RELEASE.md
 - [x] Floxi ikonu, adaptif ikon, açılış ekranı
 - [x] Gizlilik politikası + KVKK taslağı (ad/e-posta eksik, herkese açık yapılmalı)

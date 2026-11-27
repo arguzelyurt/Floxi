@@ -54,6 +54,7 @@ import { toggleShowcase } from './src/game/album';
 import { grantMapReward } from './src/game/mapRewards';
 import { mapEndingAt } from './src/core/maps';
 import { PICTURES } from './src/core/pictures';
+import MapScreen from './src/ui/MapScreen';
 import MapsScreen from './src/ui/MapsScreen';
 import MarketScreen from './src/ui/MarketScreen';
 import DailyScreen from './src/ui/DailyScreen';
@@ -61,7 +62,12 @@ import SettingsScreen from './src/ui/SettingsScreen';
 import TabBar, { Tab } from './src/ui/TabBar';
 import { buyItem, buySet, equipItem, Wallet } from './src/core/market';
 
-type Screen = { kind: 'tabs' } | { kind: 'level'; n: number } | { kind: 'daily'; key: string } | { kind: 'maps' };
+type Screen =
+  | { kind: 'tabs' }
+  | { kind: 'level'; n: number; replay?: boolean; from?: number }
+  | { kind: 'daily'; key: string }
+  | { kind: 'maps' }
+  | { kind: 'map'; index: number };
 
 export default function App() {
   const [progress, setProgress] = useState<Progress | null>(null);
@@ -167,7 +173,11 @@ export default function App() {
       update((before) => {
         // Haritanın son seviyesi: ödül kazanınca hemen verilir (bir kez)
         // Aynı seviye iki kez ödül vermesin (ör. eski bir kayıttan tekrar oynanırsa)
-        if (before.level !== n) return before;
+        // Tekrar oynanan eski seviye: yalnız yıldız rekoru güncellenir (coin, ilerleme yok)
+        if (before.level !== n)
+          return n < before.level && r.stars > (before.stars[level.id] ?? 0)
+            ? { ...before, stars: { ...before.stars, [level.id]: r.stars } }
+            : before;
         const ending = mapEndingAt(before.level);
         const p = ending ? grantMapReward(before, ending.index, before.level + 1) : before;
         // Seviye kazanıldığı anda ilerler: Ana menüye dönülse de kaldığı yerden devam edilir
@@ -442,6 +452,17 @@ export default function App() {
                 progress={progress}
                 onBack={() => setScreen({ kind: 'tabs' })}
                 onShop={() => money.openShop()}
+                onOpen={(i) => setScreen({ kind: 'map', index: i })}
+                onClaim={(i) => update((p) => grantMapReward(p, i))}
+              />
+            )}
+            {screen.kind === 'map' && (
+              <MapScreen
+                progress={progress}
+                index={screen.index}
+                onBack={() => setScreen({ kind: 'maps' })}
+                onShop={() => money.openShop()}
+                onPlay={(lv, replay) => setScreen({ kind: 'level', n: lv, replay, from: screen.index })}
                 onClaim={(i) => update((p) => grantMapReward(p, i))}
               />
             )}
@@ -454,10 +475,10 @@ export default function App() {
                 progress={progress}
                 update={update}
                 money={money}
-                coinsFor={(stars) => coinsForLevel(stars, !!level.hard)}
+                coinsFor={(stars) => (screen.replay ? 0 : coinsForLevel(stars, !!level.hard))}
                 onWin={onLevelWin}
-                winPicture={winPicture}
-                winMap={winMap}
+                winPicture={screen.replay ? undefined : winPicture}
+                winMap={screen.replay ? undefined : winMap}
                 resume={progress.savedLevel?.id === level.id ? progress.savedLevel.s : undefined}
                 onSave={(st) =>
                   update((p) =>
@@ -466,7 +487,7 @@ export default function App() {
                 }
                 nextLabel={t('game.next')}
                 onNext={() => onNext(n)}
-                onExit={() => setScreen({ kind: 'tabs' })}
+                onExit={() => setScreen(screen.from !== undefined ? { kind: 'map', index: screen.from } : { kind: 'tabs' })}
               />
             )}
             {screen.kind === 'daily' && daily && (
